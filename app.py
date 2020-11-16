@@ -1,3 +1,4 @@
+import html
 import sqlite3
 import uuid
 from flask import Flask, request, jsonify, url_for, render_template, make_response, redirect
@@ -13,6 +14,8 @@ app = Flask(__name__)
 # All major frameworks enforce CSRF-protection in forms by default, in all POST views.
 app.config['WTF_CSRF_ENABLED'] = False
 
+csrf_token = str(uuid.uuid4())
+
 
 @app.route('/', methods=['GET'])
 def main():
@@ -24,22 +27,22 @@ def account():
     with Database() as db:
         db.execute("select amount from accounts where username = 'user1'")
         data = db.fetchone()
-    resp = make_response(render_template('account.html', current_account=data[0]))
-    secret_token = request.cookies.get('secret')
-    if secret_token is None:
-        resp.set_cookie('secret', str(uuid.uuid4()))
+    resp = make_response(render_template('account.html', current_account=data[0], csrf_token=csrf_token))
+    # secret_token = request.cookies.get('secret')
+    # if secret_token is None:
+    #     resp.set_cookie('secret', csrf_token)
     return resp
 
 
 @app.route('/withdraw', methods=['POST'])
 def withdraw():
-    username = request.form.get("username")
-    password = request.form.get("password")
-    secret = request.cookies.get("secret")
+    username = html.escape(request.form.get("username"))
+    password = html.escape(request.form.get("password"))
+    secret = request.form.get("secret")
     
     print(username, password, secret)
     
-    if username != 'user1' or password != 'password' or not secret:
+    if username != 'user1' or password != 'password' or not secret or secret != csrf_token:
         return redirect(url_for('account'))
 
     with Database() as db:
