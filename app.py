@@ -1,4 +1,8 @@
 import html
+import secrets
+import string
+from blake3 import blake3
+
 import sqlite3
 import uuid
 from flask import Flask, request, jsonify, url_for, render_template, make_response, redirect
@@ -14,7 +18,13 @@ app = Flask(__name__)
 # All major frameworks enforce CSRF-protection in forms by default, in all POST views.
 app.config['WTF_CSRF_ENABLED'] = False
 
-csrf_token = str(uuid.uuid4())
+secret = str(uuid.uuid4())
+
+alphabet = (string.ascii_letters + string.digits).translate({ord(c): '' for c in "0OlI"})
+SECRET_KEY = ''.join(secrets.choice(alphabet) for i in range(20))
+
+def csrf_token_gen(secret):
+    return blake3((secret + SECRET_KEY).encode()).hexdigest()
 
 
 @app.route('/', methods=['GET'])
@@ -27,10 +37,18 @@ def account():
     with Database() as db:
         db.execute("select amount from accounts where username = 'user1'")
         data = db.fetchone()
+    
+    secret_token = request.cookies.get('secret')
+
+    if secret_token is None:
+        secret_token = secret
+
+    csrf_token = csrf_token_gen(secret_token)
+
     resp = make_response(render_template('account.html', current_account=data[0], csrf_token=csrf_token))
-    # secret_token = request.cookies.get('secret')
-    # if secret_token is None:
-    #     resp.set_cookie('secret', csrf_token)
+
+    resp.set_cookie('secret', secret_token)
+
     return resp
 
 
@@ -38,11 +56,12 @@ def account():
 def withdraw():
     username = html.escape(request.form.get("username"))
     password = html.escape(request.form.get("password"))
-    secret = request.form.get("secret")
+    csrf_token = request.form.get("csrf_token")
+    secret = request.cookies.get("secret")
     
     print(username, password, secret)
     
-    if username != 'user1' or password != 'password' or not secret or secret != csrf_token:
+    if username != 'user1' or password != 'password' or not secret or csrf_token_gen(secret) != csrf_token:
         return redirect(url_for('account'))
 
     with Database() as db:

@@ -17,7 +17,7 @@
         
         <label for="password">Password</label><br />
         <input type="password" placeholder="Password" name="password" id="password" />
-        <input type="hidden" name="secret" value={{ csrf_token }}>
+        <input type="hidden" name="csrf_token" value={{ csrf_token }}>
         <br /><br />
         
         <button type="submit">Withdraw</button>
